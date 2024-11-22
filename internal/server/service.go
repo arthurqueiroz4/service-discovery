@@ -12,20 +12,20 @@ import (
 )
 
 type service struct {
-	ttl      time.Time
-	url      *url.URL
-	proxy    *httputil.ReverseProxy
-	name     string
-	endpoint string
+	TTL      time.Time              `json:"ttl"`
+	URL      *url.URL               `json:"url"`
+	Proxy    *httputil.ReverseProxy `json:"-"`
+	Name     string                 `json:"name"`
+	Endpoint string                 `json:"endpoint"`
 }
 
 func newService(url *url.URL, name, endpoint string) (*service, error) {
 	se := &service{
-		url:      url,
-		name:     name,
-		endpoint: endpoint,
-		ttl:      time.Now().Add(30 * time.Minute),
-		proxy:    httputil.NewSingleHostReverseProxy(url),
+		URL:      url,
+		Name:     name,
+		Endpoint: endpoint,
+		TTL:      time.Now().Add(30 * time.Millisecond),
+		Proxy:    httputil.NewSingleHostReverseProxy(url),
 	}
 	err := se.verifyHealthy()
 	if err != nil {
@@ -38,35 +38,48 @@ func newService(url *url.URL, name, endpoint string) (*service, error) {
 func (se *service) verifyHealthy() error {
 	c := http.Client{}
 
-	res, err := c.Get(se.url.String())
+	res, err := c.Get(se.URL.String() + "/health")
 	if err != nil {
-		slog.Error(fmt.Sprintf("Service [%s - %s] isn't healthy: %s", se.name, se.url.String(), err.Error()))
+		slog.Error(fmt.Sprintf("Service [%s - %s] isn't healthy: %s", se.Name, se.URL.String(), err.Error()))
 		return err
 	}
 
 	if res.StatusCode != http.StatusOK {
-		err = errors.New("Health returns status code != 200: " + se.url.String())
-		slog.Error(fmt.Sprintf("Service [%s - %s] isn't healthy: %s" + err.Error()))
+		err = errors.New("Health request returns status code != 200")
+		slog.Error(fmt.Sprintf("Service [%s - %s] isn't healthy: %s", se.Name, se.URL.String(), err.Error()))
 		return err
 	}
 
-	slog.Info(fmt.Sprintf("Service [%s - %s]", se.name, se.url.String()))
+	slog.Info(fmt.Sprintf("Service [%s - %s]", se.Name, se.URL.String()))
 	return nil
 }
 
-func (s *service) HandleProxy() func(http.ResponseWriter, *http.Request) {
+func (s *service) handleProxy() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// TODO: Handle ttl
+		if !s.isValid() {
+			if err := s.verifyHealthy(); err != nil {
+				w.Write([]byte("Service is down"))
+
+				w.WriteHeader(502)
+				return
+			}
+		}
+
 		slog.Info(fmt.Sprintf("[PROXY] Request received at %s at %s", r.URL, time.Now().UTC()))
-		r.URL.Host = s.url.Host
-		r.URL.Scheme = s.url.Scheme
+		r.URL.Host = s.URL.Host
+		r.URL.Scheme = s.URL.Scheme
 		r.Header.Set("X-Forwarded-Host", r.Header.Get("Host"))
-		r.Host = s.url.Host
+		r.Host = s.URL.Host
 
 		path := r.URL.Path
-		r.URL.Path = strings.TrimLeft(path, s.endpoint)
+		r.URL.Path = strings.TrimLeft(path, s.Endpoint)
 
 		slog.Info(fmt.Sprintf("[PROXY] Proxying request to %s at %s", r.URL, time.Now().UTC()))
-		s.proxy.ServeHTTP(w, r)
+		s.Proxy.ServeHTTP(w, r)
 	}
+}
+
+func (s *service) isValid() bool {
+	slog.Info("Validando...")
+	return time.Now().Before(s.TTL)
 }

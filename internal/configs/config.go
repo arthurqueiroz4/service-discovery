@@ -8,18 +8,11 @@ import (
 	"github.com/spf13/viper"
 )
 
-type resource struct {
-	Name     string
-	Endpoint string
-	URL      string
-}
-
 type configuration struct {
 	Server struct {
 		Host string
 		Port string
 	}
-	Resources []resource
 }
 
 var Config *configuration
@@ -38,6 +31,6 @@ func NewConfiguration() (*configuration, error) {
 	if err != nil {
 		return nil, fmt.Errorf("error reading config file: %s", err)
 	}
-	slog.Info("Servers in 'config.yaml' were added on service")
+	slog.Info(fmt.Sprintf("Servers in 'config.yaml' were added on service: %v", Config))
 	return Config, nil
 }

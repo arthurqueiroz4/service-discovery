@@ -12,6 +12,5 @@ func main() {
 		log.Panic(err)
 	}
 
-	// TODO: Add new services
-	server.NewServer(cfg.Server.Host, cfg.Server.Port)
+	server.NewServer(cfg.Server.Host, cfg.Server.Port).Run()
 }

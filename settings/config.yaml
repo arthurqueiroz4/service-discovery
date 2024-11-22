@@ -2,13 +2,3 @@ server:
   host: "localhost"
   port: "8080"
 
-resources:
-  - name: Server1
-    endpoint: /server1
-    URL: "http://localhost:9001"
-  - name: Server2
-    endpoint: /server2
-    URL: "http://localhost:9002"
-  - name: Server3
-    endpoint: /server3
-    URL: "http://localhost:9003"
